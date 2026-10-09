@@ -42,6 +42,15 @@ In our `SecurityConfig.java`, we define a custom `SecurityFilterChain` bean to m
 - **Enabling Multiple Authentication Methods:** We enabled both `.formLogin(Customizer.withDefaults())` (for browser-based interaction) and `.httpBasic(Customizer.withDefaults())` (for API testing via tools like Postman).
 - **Session Management:** We experimented with `sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))` (currently commented out). When enabled, this instructs Spring Security not to use sessions to store the user's security context.
 
+### 6. Customizing Users (`UserDetailsService`)
+By default, Spring Security generates a single user with the username `user` and a random password printed to the console. To define our own custom users, we modified `SecurityConfig.java` to include a `UserDetailsService` bean.
+
+#### The `UserDetailsService` Interface
+* **The Theory:** `UserDetailsService` is a core interface in Spring Security whose primary purpose is to load user-specific data during the authentication process. When a user attempts to log in, Spring Security calls the `loadUserByUsername(String username)` method on this interface to fetch the user's credentials and roles from your storage mechanism.
+* **The Implementation (`InMemoryUserDetailsManager`):** In our current code, we return an `InMemoryUserDetailsManager`. This is a non-persistent implementation of `UserDetailsService` that stores user credentials directly in the server's RAM. It is perfect for testing and learning.
+* **Creating Users:** We created two `UserDetails` objects ("Harish" and "Krish") using the `User.withDefaultPasswordEncoder()` builder, passing them into the manager. 
+* **Note on Passwords:** `withDefaultPasswordEncoder()` is considered unsafe for production use because it does not enforce a strong, standalone hashing strategy. In a real-world application, you would store already-hashed passwords in a real database, configure a secure `PasswordEncoder` bean (like `BCryptPasswordEncoder`), and create a custom `UserDetailsService` class that queries your database (e.g., via Spring Data JPA) to find the user.
+
 ## Authentication Mechanisms: Form Login vs. HTTP Basic
 
 When configuring Spring Security, choosing the right authentication mechanism and session management policy is critical. Here is a breakdown of how `.formLogin()` and `.httpBasic()` operate, and how they interact with REST API architectures.
