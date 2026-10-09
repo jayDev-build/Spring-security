@@ -141,3 +141,31 @@ http.csrf(csrf -> csrf
     .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 );
 ```
+
+## Frontend Implementation: Handling the CSRF Token
+
+While the backend enables the Double Submit Cookie pattern, the frontend is responsible for reading the cookie and returning it as a header. Here is how the browser and JavaScript interact to make this secure.
+
+### The Browser vs. JavaScript
+* **Browser Behavior (Automatic):** The browser automatically attaches cookies to network requests based on the destination domain. However, it **never** automatically attaches custom HTTP headers.
+* **JavaScript Behavior (Manual):** To send the `X-XSRF-TOKEN` header required by Spring Security, frontend JavaScript must explicitly read the token from the cookie and manually attach it to the request headers.
+
+### Why Attackers Fail
+Because of the **Same-Origin Policy (SOP)**, malicious JavaScript running on an attacker's site (`evilsite.com`) is strictly blocked from reading cookies that belong to your domain. Since the attacker's script cannot read the `XSRF-TOKEN` cookie, it cannot copy the value into the required header. The request is sent with the cookie (automatically attached by the browser) but without the header, causing the server to reject the forged request.
+
+### Legitimate Frontend Code Examples
+Because your authentic frontend runs on the correct domain, SOP allows it to read the `non-httpOnly` cookie and attach the header.
+
+#### 1. Using Modern Libraries (Axios)
+HTTP clients like Axios have built-in, automated support for the Double Submit Cookie pattern. You only need to configure it once globally:
+
+```javascript
+import axios from 'axios';
+
+// Configure Axios to look for the Spring Security default names
+axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
+axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+
+// Axios will now automatically read the cookie and attach the header on every POST/PUT/DELETE request!
+axios.post('https://api.yourdomain.com/transfer', { amount: 1000 });
+```
