@@ -115,3 +115,29 @@ A common misconception is that CSRF protection should be disabled simply because
 * **The Mechanism:** To protect the JWT from Cross-Site Scripting (XSS) attacks, the backend sends the JWT inside an `httpOnly` cookie instead of the response body.
 * **The Security Profile:** Because the JWT is now a cookie, the browser **will** automatically attach it to outgoing requests to your domain—including forged requests triggered by a malicious site. 
 * **The Configuration:** Storing a JWT in a cookie immediately re-introduces the exact vulnerability that makes CSRF possible. In this architecture, you **MUST NOT disable** CSRF protection. You still require Spring Security's `_csrf` token to act as a secondary, non-cookie proof of origin.
+
+## CSRF in Stateless Architectures (Double Submit Cookie)
+
+A common architectural conflict arises when an application must remain `STATELESS` (e.g., using JWTs in `httpOnly` cookies) but still requires CSRF protection. If the server has no sessions, it cannot remember the CSRF token to validate it.
+
+### The Solution: The Double Submit Cookie Pattern
+Instead of storing the expected CSRF token in a server-side session, the server relies on the frontend to prove it has read access to the domain's cookies.
+
+1. **Delivery:** The server generates a CSRF token and sends it to the browser as a **non-httpOnly** cookie (e.g., `XSRF-TOKEN`). The server does not save this token in memory.
+2. **The Request:** When the frontend (e.g., React/Angular) makes a state-changing request, JavaScript reads the `XSRF-TOKEN` cookie and copies its value into a custom HTTP header (e.g., `X-XSRF-TOKEN`).
+3. **Stateless Validation:** The server receives the request and compares the value of the cookie against the value of the custom header. If they match, the request is trusted.
+
+### Why this is secure
+The Same-Origin Policy (SOP) prevents malicious websites from reading cookies belonging to your domain. While a CSRF attack automatically *sends* the cookies, the attacker's script cannot *read* the `XSRF-TOKEN` cookie to copy it into the required `X-XSRF-TOKEN` header. The server sees a mismatch (or a missing header) and blocks the request.
+
+### Where are CSRF tokens stored?
+* **SPAs (React/Vue/Angular):** Stored as a non-httpOnly cookie. JavaScript reads it on the fly. They are generally not stored in `localStorage`.
+* **Traditional Web Apps (Thymeleaf/HTML):** Stored directly in the HTML Document Object Model (DOM) as a hidden `<input>` field.
+
+### Spring Security Implementation
+To implement stateless CSRF protection in Spring Security, override the default session-based repository:
+```java
+http.csrf(csrf -> csrf
+    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+);
+```
