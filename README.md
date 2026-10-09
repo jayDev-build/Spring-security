@@ -98,3 +98,20 @@ Securing a modern web application requires understanding how browsers handle aut
 #### 5. CSRF vs. XSS (Cross-Site Scripting)
 *   **CSRF** forces a user's browser to execute unwanted actions on a trusted site. The attacker operates from their *own* malicious domain.
 *   **XSS** involves the attacker successfully injecting malicious JavaScript directly into the *trusted* site. If a site is vulnerable to XSS, the injected script can read the CSRF tokens from the page (since it executes within the same origin), completely bypassing CSRF defenses.
+
+## JWTs and CSRF Protection: When to Disable It
+
+A common misconception is that CSRF protection should be disabled simply because an application uses JWTs or is configured as `STATELESS`. The actual reason depends entirely on **how the JWT is transported** to the server. 
+
+**The Golden Rule:** CSRF attacks completely rely on the web browser's behavior of *automatically* attaching cookies to cross-origin requests. If your authentication mechanism does not rely on automatic cookies, a CSRF attack is impossible.
+
+### Scenario A: JWT in the `Authorization` Header (Most Common)
+* **The Mechanism:** The frontend stores the JWT (e.g., in memory or `localStorage`) and manually attaches it to every API call using a custom header: `Authorization: Bearer <token>`.
+* **The Security Profile:** Web browsers **do not** automatically attach `localStorage` data or custom headers to cross-origin requests. If a malicious site attempts a CSRF attack, the forged request will arrive at your server completely empty (without the JWT). 
+* **The Configuration:** Because the browser's automatic sending behavior is bypassed, you are naturally immune to CSRF. In this architecture, it is **safe to disable** CSRF protection: 
+  `http.csrf(csrf -> csrf.disable())`
+
+### Scenario B: JWT in an `httpOnly` Cookie
+* **The Mechanism:** To protect the JWT from Cross-Site Scripting (XSS) attacks, the backend sends the JWT inside an `httpOnly` cookie instead of the response body.
+* **The Security Profile:** Because the JWT is now a cookie, the browser **will** automatically attach it to outgoing requests to your domain—including forged requests triggered by a malicious site. 
+* **The Configuration:** Storing a JWT in a cookie immediately re-introduces the exact vulnerability that makes CSRF possible. In this architecture, you **MUST NOT disable** CSRF protection. You still require Spring Security's `_csrf` token to act as a secondary, non-cookie proof of origin.
