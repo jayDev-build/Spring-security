@@ -1,7 +1,11 @@
 package impl.spring_security.Config;
 
+import impl.spring_security.Service.MyUserDetailsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -9,6 +13,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
@@ -16,6 +21,9 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    @Autowired
+    public MyUserDetailsService userDetailsService;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http){
@@ -28,22 +36,29 @@ public class SecurityConfig {
                 .build();
     }
 
+//    @Bean
+//    public UserDetailsService userDetailsService(){
+//        UserDetails user1 = User.
+//                withDefaultPasswordEncoder().
+//                username("Harish").
+//                password("Harish@123").build();
+//
+//        UserDetails user2 = User.
+//                withDefaultPasswordEncoder().
+//                username("Krish").
+//                password("Kish@123")
+//                .build();
+//
+//        UserDetailsService userDetailsService = new InMemoryUserDetailsManager(user1, user2);
+//
+//        return userDetailsService;
+//    }
+
+
     @Bean
-    public UserDetailsService userDetailsService(){
-        UserDetails user1 = User.
-                withDefaultPasswordEncoder().
-                username("Harish").
-                password("Harish@123").build();
-
-        UserDetails user2 = User.
-                withDefaultPasswordEncoder().
-                username("Krish").
-                password("Kish@123")
-                .build();
-
-        UserDetailsService userDetailsService = new InMemoryUserDetailsManager(user1, user2);
-
-        return userDetailsService;
+    public AuthenticationProvider authenticationProvider(){
+        DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider(userDetailsService);
+        authenticationProvider.setPasswordEncoder(NoOpPasswordEncoder.getInstance());
+        return authenticationProvider;
     }
-
 }
