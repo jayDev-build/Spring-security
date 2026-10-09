@@ -33,3 +33,33 @@ CSRF is an attack that forces an end user to execute unwanted actions on a web a
 3. Open a browser and go to `http://localhost:8080/`. You will be redirected to a login page.
 4. After logging in, you will see the greeting message and your current Session ID.
 5. To test the `POST /student/` endpoint, you will need to fetch the CSRF token first using a tool like Postman, perform a Basic Auth login, and include the CSRF token in the headers of your POST request.
+
+## Web Security Fundamentals: CSRF, SOP, and CORS
+
+### Summary
+Securing a modern web application requires understanding how browsers handle authentication and cross-site requests. Browsers automatically attach cookies to outgoing requests based on the destination domain, which streamlines authentication but opens the door to Cross-Site Request Forgery (CSRF). To mitigate this, backend frameworks (like Spring Security) implement the Synchronizer Token Pattern. The effectiveness of this defense completely relies on the browser's Same-Origin Policy (SOP), which acts as a shield preventing malicious sites from reading the secret tokens required to validate a request. When legitimate cross-origin communication is needed, Cross-Origin Resource Sharing (CORS) is configured on the backend to safely relax the SOP restrictions.
+
+### Key Concepts & Situations
+
+#### 1. The Vulnerability: Browser Cookie Behavior
+*   **The Mechanism:** When a browser makes a request to a domain (e.g., `yourbank.com`), it automatically attaches any cookies associated with that domain.
+*   **The Attack (CSRF):** An attacker hosts a malicious site (`evilsite.com`). When a user visits, a hidden form or script triggers a state-changing request (POST, PUT, DELETE) to `yourbank.com`. 
+*   **The Result:** The browser automatically attaches the user's authentic bank cookies to the forged request, making the server believe the action was intentionally initiated by the logged-in user.
+
+#### 2. The Shield: Same-Origin Policy (SOP)
+*   **The Rule:** SOP is a strict security mechanism built into all web browsers. It dictates that scripts running on Site A cannot read data, DOM elements, or API responses from Site B.
+*   **The Protection:** SOP stops `evilsite.com` from reading the HTML or memory of `yourbank.com`. 
+
+#### 3. The Defense: CSRF Tokens
+*   **The Implementation:** To stop CSRF, the backend generates a secure, random string (the CSRF token) tied to the user's session and sends it to the legitimate frontend.
+*   **The Requirement:** The server requires this token to be included in all state-changing requests (usually via a `_csrf` form parameter or an `X-CSRF-TOKEN` HTTP header).
+*   **How it Defeats the Attacker:** When `evilsite.com` forces the browser to send a request, the browser attaches the cookies, but it *does not* automatically attach custom headers or hidden form fields. Because SOP prevents `evilsite.com` from reading the legitimate site, the attacker cannot steal the token to include it. The server receives the request, sees the missing token, and blocks the action with a `403 Forbidden` error.
+
+#### 4. The Exception: Cross-Origin Resource Sharing (CORS)
+*   **The Problem:** Modern applications often host the frontend (`my-app.com`) and backend API (`api.my-app.com`) on different domains. SOP naturally blocks the frontend from reading the API's responses.
+*   **The Solution:** CORS is a backend configuration that safely bypasses SOP. The server sends specific HTTP headers (e.g., `Access-Control-Allow-Origin`) telling the browser that it is permitted to let the legitimate frontend read the responses.
+*   **Preflight Requests (`OPTIONS`):** For complex frontend requests (like sending JSON payloads or custom headers), the browser will automatically send an `OPTIONS` request to the backend first. This asks the server for CORS permission before transmitting the actual data.
+
+#### 5. CSRF vs. XSS (Cross-Site Scripting)
+*   **CSRF** forces a user's browser to execute unwanted actions on a trusted site. The attacker operates from their *own* malicious domain.
+*   **XSS** involves the attacker successfully injecting malicious JavaScript directly into the *trusted* site. If a site is vulnerable to XSS, the injected script can read the CSRF tokens from the page (since it executes within the same origin), completely bypassing CSRF defenses.
