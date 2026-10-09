@@ -51,6 +51,26 @@ By default, Spring Security generates a single user with the username `user` and
 * **Creating Users:** We created two `UserDetails` objects ("Harish" and "Krish") using the `User.withDefaultPasswordEncoder()` builder, passing them into the manager. 
 * **Note on Passwords:** `withDefaultPasswordEncoder()` is considered unsafe for production use because it does not enforce a strong, standalone hashing strategy. In a real-world application, you would store already-hashed passwords in a real database, configure a secure `PasswordEncoder` bean (like `BCryptPasswordEncoder`), and create a custom `UserDetailsService` class that queries your database (e.g., via Spring Data JPA) to find the user.
 
+### 7. Database Authentication (`DaoAuthenticationProvider`)
+To move away from hardcoded in-memory users, we implemented Database Authentication using Spring Data JPA and MySQL. We replaced the `InMemoryUserDetailsManager` with a custom database-backed implementation.
+
+#### The Components
+1. **The Entity (`Users.java`):** A standard JPA `@Entity` representing the user table in our MySQL database.
+2. **The Repository (`UsersRepository.java`):** A Spring Data `CrudRepository` providing a `findByUsername` method to quickly query the database.
+3. **The UserDetails Adapter (`UserPrincipal.java`):** Spring Security doesn't know about our custom `Users` entity; it only understands the `UserDetails` interface. The `UserPrincipal` class implements `UserDetails` and acts as an adapter/wrapper around our `Users` entity. It maps our database fields (username, password) to the methods Spring Security requires, and assigns a default authority (`"USER"`).
+4. **The Custom Service (`MyUserDetailsService.java`):** Implements `UserDetailsService`. It uses the `UsersRepository` to fetch the user from the database. If found, it wraps the user in a `UserPrincipal` and returns it back to Spring Security.
+5. **The Authentication Provider (`SecurityConfig.java`):** We defined an `AuthenticationProvider` bean returning a `DaoAuthenticationProvider`. We configured this provider to use our `MyUserDetailsService` and a `NoOpPasswordEncoder` (since we are storing plain text passwords for learning purposes).
+
+#### The Proper Flow (How it works under the hood)
+1. A user attempts to log in by submitting their username and password.
+2. Spring Security's `AuthenticationManager` delegates the validation request to our configured `DaoAuthenticationProvider`.
+3. The `DaoAuthenticationProvider` calls `loadUserByUsername(username)` on our custom `MyUserDetailsService`.
+4. Our service queries the MySQL database via the repository. 
+   - If the user does not exist, a `UsernameNotFoundException` is thrown.
+   - If the user exists, a `UserPrincipal` object containing the actual database password and authorities is returned.
+5. The `DaoAuthenticationProvider` takes the returned `UserPrincipal` and compares its database password against the password the user submitted on the login screen. It uses the configured `PasswordEncoder` (in our case, `NoOpPasswordEncoder`) to do this comparison.
+6. If the passwords match, the authentication is successful, the user's session is established, and they are granted access!
+
 ## Authentication Mechanisms: Form Login vs. HTTP Basic
 
 When configuring Spring Security, choosing the right authentication mechanism and session management policy is critical. Here is a breakdown of how `.formLogin()` and `.httpBasic()` operate, and how they interact with REST API architectures.
