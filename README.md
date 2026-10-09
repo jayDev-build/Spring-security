@@ -34,6 +34,41 @@ CSRF is an attack that forces an end user to execute unwanted actions on a web a
 4. After logging in, you will see the greeting message and your current Session ID.
 5. To test the `POST /student/` endpoint, you will need to fetch the CSRF token first using a tool like Postman, perform a Basic Auth login, and include the CSRF token in the headers of your POST request.
 
+### 5. Custom Security Configuration (`SecurityConfig.java`)
+Spring Security's default behavior can be customized by creating a class annotated with `@Configuration` and `@EnableWebSecurity`.
+In our `SecurityConfig.java`, we define a custom `SecurityFilterChain` bean to modify the security behavior:
+- **Disabling CSRF:** `http.csrf(customizer -> customizer.disable())` explicitly turns off CSRF protection. This makes testing state-changing methods (like POST) easier during development.
+- **Requiring Authentication:** `.authorizeHttpRequests(req -> req.anyRequest().authenticated())` ensures that all endpoints still require the user to be logged in.
+- **Enabling Multiple Authentication Methods:** We enabled both `.formLogin(Customizer.withDefaults())` (for browser-based interaction) and `.httpBasic(Customizer.withDefaults())` (for API testing via tools like Postman).
+- **Session Management:** We experimented with `sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))` (currently commented out). When enabled, this instructs Spring Security not to use sessions to store the user's security context.
+
+## Authentication Mechanisms: Form Login vs. HTTP Basic
+
+When configuring Spring Security, choosing the right authentication mechanism and session management policy is critical. Here is a breakdown of how `.formLogin()` and `.httpBasic()` operate, and how they interact with REST API architectures.
+
+### 1. Form Login (`.formLogin()`)
+* **Purpose:** Designed for human users navigating a traditional, server-rendered web application via a web browser.
+* **Behavior:** Intercepts unauthenticated requests and redirects the user to an HTML login page.
+* **Mechanism:** Requires an HTML form `POST` submission to `/login` using the `x-www-form-urlencoded` format. Parameter names are strictly case-sensitive (they must be exactly `username` and `password`).
+* **State Dependency (Stateful):** Inherently relies on server-side memory. After a successful login, the server creates a session (e.g., a `JSESSIONID` cookie) to remember the user across subsequent requests.
+* **The Stateless Conflict:** If configured alongside `SessionCreationPolicy.STATELESS`, `formLogin` breaks. The server will authenticate the form submission but instantly throw away the session. The very next request will fail with a `401 Unauthorized` error because the server immediately "forgets" the user logged in.
+
+### 2. HTTP Basic Authentication (`.httpBasic()`)
+* **Purpose:** Designed for programmatic access, REST APIs, and server-to-server communication where no visual UI is needed.
+* **Behavior:** Rejects unauthenticated requests with a `401 Unauthorized` status and a `WWW-Authenticate: Basic` header. Web browsers respond to this specific header by pausing the page and displaying a native OS-level credential pop-up.
+* **Mechanism:** Requires the client to send an `Authorization` HTTP header containing a Base64-encoded `username:password` string on **every single request**.
+* **State Dependency (Stateless):** Works perfectly with `STATELESS` configurations. Because the client provides the credentials on every single request, the server does not need to rely on a session to remember who the user is.
+
+### 3. Stateful vs. Stateless Architecture
+Understanding the difference is key to debugging authentication flows:
+* **Stateful (Sessions):** The server has a memory. You send your password **once**. The server remembers you with a Session ID, and you send that ID on future requests.
+* **Stateless (REST APIs):** The server has zero memory. Every request is a completely isolated event. You must prove who you are (via Basic Auth or tokens like JWT) on **every** request.
+* **The "Changing Session ID" Proof:** In a perfectly stateless application, if your controller code manually requests a session ID, the underlying web server (like Tomcat) will generate a temporary one on the spot. Because Spring Security refuses to save it, the next request will generate a brand-new ID. A constantly changing session ID is actual proof that your application is successfully stateless.
+
+### 4. API Testing (e.g., using Postman)
+* **Testing Form Login:** The HTML "Preview" tab is not a browser engine; clicking an HTML "Sign In" button will do nothing. You must manually construct a `POST` request to `/login` and send the credentials via the `x-www-form-urlencoded` body tab.
+* **Testing HTTP Basic:** API clients will not trigger a native browser pop-up; they will just display the `401 Unauthorized` error. You must navigate to the **Authorization** tab, select **Basic Auth**, and enter your credentials. The tool will automatically encode them and append the correct header to your request.
+
 ## Web Security Fundamentals: CSRF, SOP, and CORS
 
 ### Summary
